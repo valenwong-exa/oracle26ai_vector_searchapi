@@ -1,0 +1,38 @@
+脚本说明
+
+- test_upload_doc.py
+  - 测试 POST /documents/upload
+  - 支持 --port
+  - 默认文件是当前目录的 test.txt
+  - 支持传 PDF/TXT 文件路径
+  - 支持 --use-deepseek-summary
+- test_vectoer_search.py
+  - 测试 POST /search
+  - 支持 --port
+  - 支持 --prompt 、 --top-k 、 --fetch-k 、 --reranker-score 、 --return-mode
+使用示例
+
+- 测 Qwen 上传：
+```
+.\.venv\Scripts\python.exe .\test_upload_doc.py "E:\embeding_example_2026\test.
+txt" --port 19000
+```
+- 测 BGE 上传：
+```
+.\.venv\Scripts\python.exe .\test_upload_doc.py "E:\embeding_example_2026\test.
+txt" --port 19001
+```
+- 测 Qwen 搜索：
+```
+.\.venv\Scripts\python.exe .\test_vectoer_search.py --port 19000 --prompt "ASM 实例
+同步的时候，发生崩溃" --return-mode full
+```
+- 测 BGE 搜索：
+```
+.\.venv\Scripts\python.exe .\test_vectoer_search.py --port 19001 --prompt "ASM 实例
+同步的时候，发生崩溃" --return-mode full
+```
+已验证
+
+- 两个新脚本都通过了本地诊断检查
+- 两个脚本的 --help 也已经跑通，语法正常
