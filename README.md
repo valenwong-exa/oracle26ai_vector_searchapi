@@ -87,7 +87,6 @@
 ├── test_vectoer_search.py
 ├── test_api_upload.py
 ├── test_api_search.py
-├── test.txt
 ├── Qwen3-VL-Embedding-2B/
 ├── Qwen3-VL-Reranker-2B/
 ├── bge-m3/
