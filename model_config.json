@@ -1,0 +1,9 @@
+{
+  "embedding_model_dir": "./Qwen3-VL-Embedding-2B",
+  "embedding_backend": "auto",
+  "embedding_repo_id": "Qwen/Qwen3-VL-Embedding-2B",
+  "reranker_model_dir": "./Qwen3-VL-Reranker-2B",
+  "reranker_backend": "auto",
+  "reranker_repo_id": "Qwen/Qwen3-VL-Reranker-2B",
+  "proxy": "http://127.0.0.1:7897"
+}
