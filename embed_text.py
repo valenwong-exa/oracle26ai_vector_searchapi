@@ -320,6 +320,8 @@ def infer_embedding_backend(
         architecture.endswith("model") for architecture in architectures
     ):
         return "bge_m3"
+    if (model_dir / "1_Pooling" / "config.json").exists():
+        return "sentence_transformer"
     raise ValueError(
         f"Unsupported embedding model backend for {model_dir}. "
         f"model_type={model_type!r}, architectures={architectures!r}"
@@ -340,7 +342,7 @@ def infer_reranker_backend(
     ]
     if model_type.startswith("qwen3_vl"):
         return "qwen_vl_yesno"
-    if model_type == "xlm-roberta" and any(
+    if any(
         "sequenceclassification" in architecture for architecture in architectures
     ):
         return "bge_seq_cls"
@@ -368,7 +370,7 @@ def get_embedding_dimension(
                 f"Cannot determine embedding dimension for Qwen model: {model_dir}"
             )
         return int(dimension)
-    if backend == "bge_m3":
+    if backend in ("bge_m3", "sentence_transformer"):
         pooling_config = read_pooling_config(model_dir)
         return int(
             pooling_config.get("word_embedding_dimension")
@@ -441,7 +443,7 @@ class EmbeddingRuntime:
                 )
             return embeddings.detach().cpu().tolist()
 
-        if self.backend == "bge_m3":
+        if self.backend in ("bge_m3", "sentence_transformer"):
             normalized_texts = [normalize_text(text) for text in texts]
             model_inputs = self.tokenizer(
                 normalized_texts,
@@ -582,7 +584,7 @@ def load_embedding_runtime(
             model_dir=model_dir,
         )
 
-    if backend == "bge_m3":
+    if backend in ("bge_m3", "sentence_transformer"):
         tokenizer = AutoTokenizer.from_pretrained(
             str(model_dir),
             trust_remote_code=True,
@@ -758,7 +760,7 @@ def main() -> None:
     parser.add_argument(
         "--embedding-backend",
         default=EMBEDDING_BACKEND,
-        help="Embedding backend: auto, qwen_vl, or bge_m3.",
+        help="Embedding backend: auto, qwen_vl, bge_m3, or sentence_transformer.",
     )
     parser.add_argument(
         "--download",

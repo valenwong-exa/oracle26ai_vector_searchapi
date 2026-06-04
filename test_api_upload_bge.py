@@ -4,8 +4,8 @@ from pathlib import Path
 import requests
 
 
-API_BASE = "http://127.0.0.1:19000"
-DEFAULT_FILE = Path(__file__).resolve().parent / "requirements.txt"
+API_BASE = "http://192.168.56.27:19001"
+DEFAULT_FILE = Path(__file__).resolve().parent / "network.pdf"
 
 
 def main() -> None:
