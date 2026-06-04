@@ -2,10 +2,11 @@
 
 一个基于本地 Embedding / Reranker 模型、Oracle Vector、FastAPI 的 RAG 示例项目。
 
-项目支持两套检索链路：
+项目支持三套检索链路：
 
 - `Qwen3-VL-Embedding-2B` + `Qwen3-VL-Reranker-2B`
 - `bge-m3` + `bge-reranker-v2-m3`
+- `all-MiniLM-L6-v2` + `ms-marco-MiniLM-L-6-v2`（轻量快速，适合 CPU）
 
 你可以用它完成以下流程：
 
@@ -19,7 +20,7 @@
 ## Features
 
 - 支持本地 Embedding 与 Reranker 推理
-- 支持 `Qwen` 和 `BGE` 两套模型方案切换
+- 支持 `Qwen`、`BGE`、`MiniLM` 三套模型方案切换
 - 支持 `PDF` / `TXT` 文档上传
 - 支持 Oracle 原生 `VECTOR(dim, FLOAT32)` 向量列
 - 支持 `title` / `split` / `full` 三种检索返回模式
@@ -61,10 +62,20 @@
 - 默认分片表: `LC_DEMO_CHUNKS_BGE`
 - 默认向量维度: `1024`
 
+### MiniLM 链路
+
+- Embedding: `all-MiniLM-L6-v2`（22.7M 参数，CPU 约 5 秒）
+- Reranker: `cross-encoder/ms-marco-MiniLM-L-6-v2`（CrossEncoder，CPU 约 15 秒）
+- 默认端口: `19002`
+- 默认文档表: `LC_DEMO_DOCUMENTS_MINI`
+- 默认分片表: `LC_DEMO_CHUNKS_MINI`
+- 默认向量维度: `384`
+
 说明：
 
-- 两套模型的向量维度不同，不能共用同一张 Oracle 向量表
+- 三套模型的向量维度不同，不能共用同一张 Oracle 向量表
 - 文档上传到哪一套 API，搜索也建议走同一套 API
+- MiniLM 专为 CPU 环境优化，embedding 耗时约 5 秒（BGE-M3 约 188 秒）
 
 ## Project Structure
 
@@ -80,17 +91,24 @@
 ├── embed_text.py
 ├── oracle_langchain_demo.py
 ├── oracle_vector_api.py
+├── oracle_vector_api_bge.py
+├── oracle_vector_api_mini.py
 ├── oracle_vector_schema.sql
 ├── start_qwen_oracle_vector_api.bat
 ├── start_bge_oracle_vector_api.bat
+├── start_mini_oracle_vector_api.sh
 ├── test_upload_doc.py
 ├── test_vectoer_search.py
 ├── test_api_upload.py
 ├── test_api_search.py
+├── test_api_upload_mini.py
+├── test_api_search_mini.py
 ├── Qwen3-VL-Embedding-2B/
 ├── Qwen3-VL-Reranker-2B/
 ├── bge-m3/
-└── bge-reranker-v2-m3/
+├── bge-reranker-v2-m3/
+├── all-MiniLM-L6-v2/
+└── ms-marco-MiniLM-L-6-v2/
 ```
 
 ## Requirements
@@ -182,16 +200,25 @@ $env:DEEPSEEK_MODEL="deepseek-v4-flash"
 .\start_bge_oracle_vector_api.bat
 ```
 
+启动 MiniLM 版本（Linux）：
+
+```bash
+chmod +x start_mini_oracle_vector_api.sh
+./start_mini_oracle_vector_api.sh
+```
+
 启动成功后，默认访问地址：
 
 - Qwen: `http://127.0.0.1:19000`
 - BGE: `http://127.0.0.1:19001`
+- MiniLM: `http://127.0.0.1:19002`
 
 健康检查：
 
 ```powershell
 curl http://127.0.0.1:19000/health
 curl http://127.0.0.1:19001/health
+curl http://127.0.0.1:19002/health
 ```
 
 ## API Overview
@@ -303,11 +330,23 @@ curl -X POST "http://127.0.0.1:19000/documents/upload" `
 .\.venv\Scripts\python.exe .\test_upload_doc.py .\test.txt --port 19001
 ```
 
+MiniLM 上传（Linux）：
+
+```bash
+python test_api_upload_mini.py ./test.txt
+```
+
 ### 搜索测试
 
 ```powershell
 .\.venv\Scripts\python.exe .\test_vectoer_search.py --port 19000 --prompt "ASM 实例同步时发生崩溃"
 .\.venv\Scripts\python.exe .\test_vectoer_search.py --port 19001 --prompt "ASM 实例同步时发生崩溃"
+```
+
+MiniLM 搜索（Linux）：
+
+```bash
+python test_api_search_mini.py "你的查询" --top-k 5 --device cpu
 ```
 
 ### 固定脚本示例
@@ -325,6 +364,8 @@ FastAPI 默认提供在线文档：
 - Qwen ReDoc: `http://127.0.0.1:19000/redoc`
 - BGE Swagger: `http://127.0.0.1:19001/docs`
 - BGE ReDoc: `http://127.0.0.1:19001/redoc`
+- MiniLM Swagger: `http://127.0.0.1:19002/docs`
+- MiniLM ReDoc: `http://127.0.0.1:19002/redoc`
 
 ## Database Notes
 
@@ -335,8 +376,9 @@ FastAPI 默认提供在线文档：
 
 典型表名如下：
 
-- Qwen: `LC_DEMO_DOCUMENTS` / `LC_DEMO_CHUNKS`
-- BGE: `LC_DEMO_DOCUMENTS_BGE` / `LC_DEMO_CHUNKS_BGE`
+- Qwen: `LC_DEMO_DOCUMENTS` / `LC_DEMO_CHUNKS`（2048 维）
+- BGE: `LC_DEMO_DOCUMENTS_BGE` / `LC_DEMO_CHUNKS_BGE`（1024 维）
+- MiniLM: `LC_DEMO_DOCUMENTS_MINI` / `LC_DEMO_CHUNKS_MINI`（384 维）
 
 当前实现特点：
 
@@ -363,10 +405,11 @@ $env:DEEPSEEK_API_KEY="your_deepseek_api_key"
 
 - 用 BGE 表去存 Qwen 向量
 - 用 Qwen 表去存 BGE 向量
+- 往 MiniLM 表写入其他模型的向量（维度不匹配）
 
 解决方式：
 
-- Qwen 与 BGE 分开使用各自默认表
+- Qwen、BGE、MiniLM 分开使用各自默认表
 - 或者为新模型显式指定新的表名
 
 ### 3. CUDA 不可用
@@ -401,7 +444,8 @@ $env:DEEPSEEK_API_KEY="your_deepseek_api_key"
 - 想验证本地向量化和 rerank 效果：使用 `embed_text.py`
 - 想验证 Oracle 入库和检索链路：使用 `oracle_langchain_demo.py`
 - 想给外部系统提供统一 HTTP 能力：启动 `oracle_vector_api.py`
-- 想比较不同模型方案：分别启动 Qwen 与 BGE 两套 API
+- 想比较不同模型方案：分别启动 Qwen、BGE、MiniLM 三套 API
+- CPU 环境优先推荐 MiniLM 链路，embedding ~5 秒，搜索全程 ~20 秒
 
 ## License
 
