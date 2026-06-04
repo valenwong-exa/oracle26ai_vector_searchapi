@@ -5,7 +5,7 @@ import requests
 
 
 API_BASE = "http://127.0.0.1:19000"
-DEFAULT_FILE = Path(__file__).resolve().parent / "test.txt"
+DEFAULT_FILE = Path(__file__).resolve().parent / "requirements.txt"
 
 
 def main() -> None:
@@ -22,13 +22,13 @@ def main() -> None:
             "chunk_size_tokens": "500",
             "chunk_overlap_tokens": "50",
             "source_file": "blog",
-            "device": "cuda",
+            "device": "cpu",
         }
         response = requests.post(
             f"{API_BASE}/documents/upload",
             files=files,
             data=data,
-            timeout=600,
+            timeout=3600,
         )
 
     print("status_code:", response.status_code)
