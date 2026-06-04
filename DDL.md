@@ -45,13 +45,19 @@
 - `LC_DEMO_DOCUMENTS_BGE`
 - `LC_DEMO_CHUNKS_BGE`
 
+### MiniLM 默认表
+
+- `LC_DEMO_DOCUMENTS_MINI`
+- `LC_DEMO_CHUNKS_MINI`
+
 说明：
 
 - `*_DOCUMENTS` 保存文档级数据
 - `*_CHUNKS` 保存分片级数据
 - `Qwen3-VL-Embedding-2B` 的向量维度为 `2048`
 - `bge-m3` 的向量维度为 `1024`
-- Oracle `VECTOR(dim, FLOAT32)` 的维度必须固定，因此 Qwen 与 BGE 不能共用同一张分片表
+- `all-MiniLM-L6-v2` 的向量维度为 `384`
+- Oracle `VECTOR(dim, FLOAT32)` 的维度必须固定，因此不同模型不能共用同一张分片表
 
 之所以拆成两张表，是因为业务要求同时存在：
 
@@ -83,7 +89,7 @@
 
 ### 4.1 表名
 
-- `LC_DEMO_DOCUMENTS` 或 `LC_DEMO_DOCUMENTS_BGE`
+- `LC_DEMO_DOCUMENTS` 或 `LC_DEMO_DOCUMENTS_BGE` 或 `LC_DEMO_DOCUMENTS_MINI`
 
 
 ### 4.2 用途
@@ -109,6 +115,7 @@ CREATE TABLE lc_demo_documents (
 
 - 上面的 DDL 以 `LC_DEMO_DOCUMENTS` 为例
 - 如果当前启动的是 BGE API，则默认主表名为 `LC_DEMO_DOCUMENTS_BGE`
+- 如果当前启动的是 MiniLM API，则默认主表名为 `LC_DEMO_DOCUMENTS_MINI`
 
 
 ### 4.4 字段说明
@@ -207,7 +214,7 @@ CREATE TABLE lc_demo_documents (
 
 ### 5.1 表名
 
-- `LC_DEMO_CHUNKS` 或 `LC_DEMO_CHUNKS_BGE`
+- `LC_DEMO_CHUNKS` 或 `LC_DEMO_CHUNKS_BGE` 或 `LC_DEMO_CHUNKS_MINI`
 
 
 ### 5.2 用途
@@ -257,6 +264,27 @@ CREATE TABLE lc_demo_chunks_bge (
 );
 ```
 
+```sql
+-- MiniLM 默认表示例
+CREATE TABLE lc_demo_chunks_mini (
+    doc_id NUMBER NOT NULL,
+    chunk_id NUMBER NOT NULL,
+    chunk_tokens NUMBER NOT NULL,
+    chunk_text CLOB NOT NULL,
+    embedding VECTOR(384, FLOAT32) NOT NULL,
+    document_type VARCHAR2(128) NOT NULL,
+    source_file VARCHAR2(128),
+    created_at TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT pk_lc_demo_chunks_mini PRIMARY KEY (doc_id, chunk_id),
+    CONSTRAINT fk_lc_demo_chunks_doc_mini
+        FOREIGN KEY (doc_id)
+        REFERENCES lc_demo_documents_mini (doc_id)
+        ON DELETE CASCADE,
+    CONSTRAINT ck_lc_demo_chunks_mini_source
+        CHECK ((chunk_id = 1 AND source_file IS NOT NULL) OR (chunk_id > 1 AND source_file IS NULL))
+);
+```
+
 
 ### 5.4 字段说明
 
@@ -266,7 +294,7 @@ CREATE TABLE lc_demo_chunks_bge (
 | `chunk_id` | `NUMBER` | 否 | 分片编号，从 `1` 开始顺序递增 |
 | `chunk_tokens` | `NUMBER` | 否 | 当前 chunk 的 token 数 |
 | `chunk_text` | `CLOB` | 否 | 当前分片文本内容 |
-| `embedding` | `VECTOR(2048, FLOAT32)` 或 `VECTOR(1024, FLOAT32)` | 否 | 当前分片向量 |
+| `embedding` | `VECTOR(2048, FLOAT32)` 或 `VECTOR(1024, FLOAT32)` 或 `VECTOR(384, FLOAT32)` | 否 | 当前分片向量 |
 | `document_type` | `VARCHAR2(128)` | 否 | 文档类型，如 `pdf`、`txt` |
 | `source_file` | `VARCHAR2(128)` | 是 | 只在 `chunk_id = 1` 时存储来源 |
 | `created_at` | `TIMESTAMP` | 否 | 入库时间，默认 `SYSTIMESTAMP` |
@@ -286,7 +314,8 @@ CREATE TABLE lc_demo_chunks_bge (
 
 #### 外键
 
-- `fk_lc_demo_chunks_doc FOREIGN KEY (doc_id) REFERENCES lc_demo_documents(doc_id) ON DELETE CASCADE`
+- `fk_lc_demo_chunks_doc`：`FOREIGN KEY (doc_id) REFERENCES lc_demo_documents(doc_id) ON DELETE CASCADE`
+- `fk_lc_demo_chunks_doc_mini`：`FOREIGN KEY (doc_id) REFERENCES lc_demo_documents_mini(doc_id) ON DELETE CASCADE`
 
 作用：
 
@@ -296,7 +325,8 @@ CREATE TABLE lc_demo_chunks_bge (
 
 #### 检查约束
 
-- `ck_lc_demo_chunks_source`
+- `ck_lc_demo_chunks_source`（Qwen）
+- `ck_lc_demo_chunks_mini_source`（MiniLM）
 
 规则：
 
@@ -320,6 +350,9 @@ VECTOR(2048, FLOAT32)
 
 -- BGE
 VECTOR(1024, FLOAT32)
+
+-- MiniLM
+VECTOR(384, FLOAT32)
 ```
 
 含义：
@@ -327,12 +360,14 @@ VECTOR(1024, FLOAT32)
 - 向量维度：
   - `Qwen3-VL-Embedding-2B` 为 `2048`
   - `bge-m3` 为 `1024`
+  - `all-MiniLM-L6-v2` 为 `384`
 - 单元素类型：`FLOAT32`
 
 对应当前模型：
 
 - `Qwen3-VL-Embedding-2B`
 - `bge-m3`
+- `all-MiniLM-L6-v2`
 
 注意：
 
@@ -353,6 +388,11 @@ CREATE INDEX lc_demo_chunks_doc_type_ix
 ```sql
 CREATE INDEX lc_demo_chunks_bge_doc_type_ix
     ON lc_demo_chunks_bge (document_type);
+```
+
+```sql
+CREATE INDEX lc_demo_chunks_doc_mini_type_ix
+    ON lc_demo_chunks_mini (document_type);
 ```
 
 作用：
@@ -382,6 +422,9 @@ CREATE INDEX lc_demo_chunks_bge_doc_type_ix
 - BGE API 默认：
   - `VECTOR_DOCS_TABLE=LC_DEMO_DOCUMENTS_BGE`
   - `VECTOR_CHUNKS_TABLE=LC_DEMO_CHUNKS_BGE`
+- MiniLM API 默认：
+  - `VECTOR_DOCS_TABLE=LC_DEMO_DOCUMENTS_MINI`
+  - `VECTOR_CHUNKS_TABLE=LC_DEMO_CHUNKS_MINI`
 
 说明：
 
@@ -498,6 +541,11 @@ SELECT d.doc_id,
 - `lc_demo_documents_bge`
 - `lc_demo_chunks_bge`
 
+如果查询 MiniLM 表，则把表名替换为：
+
+- `lc_demo_documents_mini`
+- `lc_demo_chunks_mini`
+
 
 ### 9.2 查询文档全文
 
@@ -509,7 +557,7 @@ SELECT doc_id,
  WHERE document_name = :document_name;
 ```
 
-如果查询 BGE 表，则把表名替换为 `lc_demo_documents_bge`。
+如果查询 BGE 表，则把表名替换为 `lc_demo_documents_bge`。MiniLM 表同理替换为 `lc_demo_documents_mini`。
 
 
 ### 9.3 查询某类文档的 chunk 数量
@@ -521,7 +569,7 @@ SELECT document_type,
  GROUP BY document_type;
 ```
 
-如果查询 BGE 表，则把表名替换为 `lc_demo_chunks_bge`。
+如果查询 BGE 表，则把表名替换为 `lc_demo_chunks_bge`。MiniLM 表同理替换为 `lc_demo_chunks_mini`。
 
 
 ## 10. 示例数据语义
@@ -567,7 +615,7 @@ SELECT document_type,
 - 文档和分片分离
 - 完整原文和分片文本同时保存
 - Oracle 原生向量字段存 embedding
-- Qwen 与 BGE 按不同表集合隔离存储
+- Qwen、BGE、MiniLM 按不同表集合隔离存储
 - 文档名唯一，避免重复上传
 - 兼容 `full`、`split`、`title` 三种返回模式
 

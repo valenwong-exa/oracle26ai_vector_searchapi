@@ -440,7 +440,9 @@ def insert_document_if_new(
 ) -> tuple[int, bool]:
     cursor = connection.cursor()
     inserted = False
+    doc_id = -1
     try:
+        out_id = cursor.var(oracledb.NUMBER)
         cursor.execute(
             f"""
             INSERT INTO {docs_table} (
@@ -454,12 +456,25 @@ def insert_document_if_new(
                 :document_type,
                 :source_file
             )
+            RETURNING doc_id INTO :out_id
             """,
             document_name=document_name,
             document_text=document_text,
             document_type=document_type,
             source_file=source_file,
+            out_id=out_id,
         )
+        doc_id = int(out_id.getvalue()[0])
+        # Verify the doc_id actually exists before committing
+        cursor.execute(
+            f"SELECT COUNT(*) FROM {docs_table} WHERE doc_id = :did",
+            did=doc_id,
+        )
+        exists = int(cursor.fetchone()[0]) > 0
+        if not exists:
+            raise RuntimeError(
+                f"RETURNING INTO returned doc_id={doc_id} but row not found"
+            )
         connection.commit()
         inserted = True
     except oracledb.DatabaseError as exc:
@@ -471,11 +486,12 @@ def insert_document_if_new(
         else:
             raise
 
-    cursor.execute(
-        f"SELECT doc_id FROM {docs_table} WHERE document_name = :document_name",
-        document_name=document_name,
-    )
-    doc_id = int(cursor.fetchone()[0])
+    if not inserted:
+        cursor.execute(
+            f"SELECT doc_id FROM {docs_table} WHERE document_name = :document_name",
+            document_name=document_name,
+        )
+        doc_id = int(cursor.fetchone()[0])
     return doc_id, inserted
 
 
